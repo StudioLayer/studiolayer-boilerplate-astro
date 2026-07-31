@@ -2,6 +2,8 @@
 
 A ready-to-go starter for a website on **Astro 5 SSR** with **StudioLayer** as a headless CMS. Fully env-driven and brandless: clone it, fill in `.env`, build.
 
+> **Working with an AI agent on this repo?** Read [AGENTS.md](./AGENTS.md) first - it holds the hard rules (SSR-only, the `src/`-not-in-runtime gotcha, media cloaking, secrets, the indexing guard).
+
 ## Stack
 
 - **Astro 5** in SSR mode (`output: 'server'`, `@astrojs/node` standalone)
