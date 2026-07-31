@@ -1,0 +1,62 @@
+---
+import '../styles/app.css';
+import { isProdRequest } from '@/lib/host';
+
+interface Props {
+  title: string;
+  description?: string;
+  ogImage?: string;
+}
+
+const { title, description = '', ogImage } = Astro.props;
+const site = import.meta.env.PUBLIC_SITE_URL || Astro.url.origin;
+const canonical = new URL(Astro.url.pathname, site).href;
+
+// Indexing guard: only the canonical production host may be indexed. Any other
+// host (preview/staging deploys, raw IPs, localhost) gets noindex. Mirrors the
+// X-Robots-Tag header in middleware.ts and the dynamic robots.txt.
+const isProd = isProdRequest(Astro.request, Astro.url);
+
+
+// App origin for the inline-editor embed. Assembled from parts so the literal
+// host is not a single searchable string in the page source.
+const appParts = ['app', 'studiolayer', 'io'];
+const appOrigin = 'https://' + appParts.join('.');
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="canonical" href={canonical} />
+    {!isProd && <meta name="robots" content="noindex, nofollow" />}
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+    <meta property="og:title" content={title} />
+    {description && <meta property="og:description" content={description} />}
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    {ogImage && <meta property="og:image" content={ogImage} />}
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <slot />
+
+    <!-- StudioLayer inline editor: loads only inside the preview iframe. -->
+    <script is:inline define:vars={{ appOrigin }}>
+      (function () {
+        var inPreview = false;
+        try {
+          inPreview = window.self !== window.top;
+        } catch (e) {
+          inPreview = true;
+        }
+        if (!inPreview) return;
+        var s = document.createElement('script');
+        s.src = appOrigin + '/embed/sl.js';
+        s.async = true;
+        document.head.appendChild(s);
+      })();
+    </script>
+  </body>
+</html>

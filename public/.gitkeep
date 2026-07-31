@@ -1,0 +1,2 @@
+# Keep public/ in git. Drop static assets here (favicon, fonts, images).
+# Files here are served from the site root and end up in dist/client.

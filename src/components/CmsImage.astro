@@ -1,0 +1,42 @@
+---
+/**
+ * Responsive, cloaked CMS image.
+ * Takes an absolute StudioLayer/CDN URL and renders an <img> that loads
+ * same-origin via /cdn/<key>, with srcset + lazy loading.
+ */
+import { proxied, imgAtWidth, srcSet } from '@/lib/studio';
+
+interface Props {
+  src: string | null | undefined;
+  alt: string;
+  width?: number;
+  widths?: number[];
+  sizes?: string;
+  class?: string;
+  loading?: 'lazy' | 'eager';
+}
+
+const {
+  src,
+  alt,
+  width = 960,
+  widths = [320, 480, 640, 960, 1280],
+  sizes = '100vw',
+  class: className,
+  loading = 'lazy',
+} = Astro.props;
+
+const proxSrc = proxied(src);
+const isProxyable = proxSrc.startsWith('/cdn/');
+const set = isProxyable ? srcSet(src, widths) : '';
+const finalSrc = isProxyable ? imgAtWidth(src, width) : proxSrc;
+---
+<img
+  src={finalSrc}
+  srcset={set || undefined}
+  sizes={set ? sizes : undefined}
+  alt={alt}
+  loading={loading}
+  decoding="async"
+  class={className}
+/>
