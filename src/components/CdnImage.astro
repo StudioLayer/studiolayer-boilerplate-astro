@@ -1,0 +1,60 @@
+---
+/**
+ * Responsive, cloaked <img> served same-origin via /cdn/<key>.
+ *
+ * Takes an absolute StudioLayer/CDN URL (or an already-relative /cdn/ URL) and
+ * emits a same-origin <img> with a width-based srcset. The upstream host never
+ * appears in the markup. Output format is negotiated per request (AVIF > WebP)
+ * unless you pin one with `format`.
+ *
+ * For art-directed <picture> (AVIF source + WebP source + <img> fallback), use
+ * <CdnSource> alongside this as the fallback <img>.
+ */
+import { cdn, cdnSrcSet, type CdnFormat } from '@/lib/cdn';
+
+interface Props {
+  src: string;
+  alt: string;
+  /** Intrinsic width used for the base src + the width the layout targets. */
+  width?: number;
+  height?: number;
+  /** Candidate widths for the srcset. */
+  widths?: number[];
+  sizes?: string;
+  /** Pin an output format. Omit to negotiate (AVIF/WebP) from the browser. */
+  format?: CdnFormat;
+  /** true for above-the-fold/LCP images: eager + high priority. */
+  priority?: boolean;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const {
+  src,
+  alt,
+  width = 960,
+  height,
+  widths = [320, 480, 640, 960, 1280],
+  sizes = '100vw',
+  format,
+  priority = false,
+  class: className,
+  ...rest
+} = Astro.props;
+
+const base = cdn(src, { w: width, f: format });
+const set = cdnSrcSet(src, widths, format);
+---
+<img
+  src={base}
+  srcset={set || undefined}
+  sizes={set ? sizes : undefined}
+  alt={alt}
+  width={width}
+  height={height}
+  loading={priority ? 'eager' : 'lazy'}
+  fetchpriority={priority ? 'high' : 'auto'}
+  decoding={priority ? 'auto' : 'async'}
+  class={className}
+  {...rest}
+/>

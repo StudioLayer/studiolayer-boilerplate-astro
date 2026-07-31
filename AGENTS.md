@@ -5,16 +5,16 @@ Rules and context for AI agents working in this repo. Read this before editing.
 
 ## What this is
 
-A brandless starter for a website on **Astro 5 SSR** with **StudioLayer** as a
+A brandless starter for a website on **Astro SSR** with **StudioLayer** as a
 headless CMS. Everything is env-driven: no client name, domain or key is
 hardcoded. When you build a real site on top of this, keep it that way.
 
 ## Stack (do not swap without being asked)
 
-- Astro 5, `output: 'server'`, `@astrojs/node` standalone adapter
+- Astro, `output: 'server'`, `@astrojs/node` standalone adapter
 - Tailwind 4 via `@tailwindcss/vite` (no `tailwind.config.js` - tokens live in `src/styles/app.css` under `@theme`)
 - `@studiolayer/client` for all CMS reads
-- `sharp` for server-side image resizing
+- `sharp` for server-side image resize + AVIF/WebP encoding
 - TypeScript strict, path alias `@/*` -> `src/*`
 
 ## Hard rules
@@ -32,10 +32,11 @@ hardcoded. When you build a real site on top of this, keep it that way.
 
 3. **All CMS media goes through `/cdn/<key>`.** Never emit a raw
    `cdn.studiolayer.io` / `app.studiolayer.io` URL into the markup - it leaks the
-   backend and skips resizing/caching. Use `proxied()` / `imgAtWidth()` /
-   `srcSet()` from `src/lib/studio.ts`, or the `<CmsImage>` component. If you add
-   a new media source, extend `resolveTarget()` in `src/pages/cdn/[...key].ts`
-   AND `proxied()` together - their key shapes must stay in sync.
+   backend and skips resizing/caching. Use `cdn()` / `cdnSrcSet()` from
+   `src/lib/cdn.ts` (re-exported from `@/lib/studio`), or the `<CdnImage>` /
+   `<CdnSource>` components. If you add a new media source, extend
+   `resolveTarget()` in `src/pages/cdn/[...key].ts` AND `toKey()` in
+   `src/lib/cdn.ts` together - their key shapes must stay in sync.
 
 4. **Never hardcode or commit secrets.** `STUDIOLAYER_API_KEY` and friends come
    from env only. `.env` is gitignored; only `.env.example` is committed. When a
@@ -57,17 +58,30 @@ hardcoded. When you build a real site on top of this, keep it that way.
 ## Where things live
 
 ```
-src/lib/studio.ts          CMS client + cloak helpers
+src/lib/studio.ts          CMS client (re-exports the cdn helpers)
+src/lib/cdn.ts             cloak helpers: cdn(), cdnSrcSet(), isProxyable()
 src/lib/host.ts            request-host resolver + prod check (indexing guard)
-src/pages/cdn/[...key].ts   media proxy (cloaking + resize + cache)
-src/pages/robots.txt.ts     dynamic robots.txt
-src/components/CmsImage.astro  responsive cloaked <img>
+src/pages/cdn/[...key].ts   media proxy (cloaking + resize + AVIF/WebP + cache)
+src/pages/robots.txt.ts     dynamic robots.txt (prod-only crawl)
+src/components/CdnImage.astro   responsive cloaked <img>
+src/components/CdnSource.astro  <source> for a cloaked <picture>
 src/layouts/Base.astro      head, OG tags, sl.js embed, noindex meta
 src/middleware.ts           CSP frame-ancestors + X-Robots-Tag
 src/styles/app.css          Tailwind 4 + @theme design tokens
 server.mjs                  prod server (immutable cache on static assets)
 Dockerfile                  multi-stage build
 ```
+
+## Images (cheat sheet)
+
+- Primitive: `cdn(url)`, `cdn(url, 640)`, `cdn(url, { w: 1280, f: 'avif' })` - use
+  anywhere (img src, background-image, og:image, preload).
+- `<CdnImage src alt width sizes priority />` - responsive `<img>` with srcset.
+  Set `priority` on the LCP/above-the-fold image.
+- `<CdnSource src format widths sizes />` - one `<source>` inside a `<picture>`;
+  put `format="avif"` before `format="webp"`, with `<CdnImage>` as the fallback.
+- Format is negotiated per request (AVIF > WebP from `Accept`) unless you pin
+  `?f=` / the `format` prop. The route sends `Vary: Accept`.
 
 ## Commands
 

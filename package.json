@@ -2,20 +2,27 @@
   "name": "studiolayer-boilerplate-astro",
   "type": "module",
   "version": "0.1.0",
-  "description": "Astro 5 SSR boilerplate with StudioLayer as a headless CMS. Same-origin media cloaking, prod-ready Docker.",
+  "description": "Astro 7 SSR boilerplate with StudioLayer as a headless CMS. Same-origin media cloaking, prod-ready Docker.",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
     "start": "node ./server.mjs",
+    "check": "astro check",
     "astro": "astro"
   },
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "dependencies": {
-    "@astrojs/node": "^9.1.3",
-    "@studiolayer/client": "^0.3.2",
-    "@tailwindcss/vite": "^4.0.0",
-    "astro": "^5.2.0",
-    "sharp": "^0.33.5",
-    "tailwindcss": "^4.0.0"
+    "@astrojs/node": "^11.0.3",
+    "@studiolayer/client": "latest",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.1.6",
+    "sharp": "^0.35.3",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }

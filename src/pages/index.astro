@@ -1,13 +1,14 @@
 ---
 import Base from '@/layouts/Base.astro';
-// import { studio } from '@/lib/studio';
-// import CmsImage from '@/components/CmsImage.astro';
+// import { studio, cdn } from '@/lib/studio';
+// import CdnImage from '@/components/CdnImage.astro';
+// import CdnSource from '@/components/CdnSource.astro';
 
 // Example: fetch content from StudioLayer.
 // const posts = await studio.dataset('blog', 'posts').list();
 
 const title = 'StudioLayer Astro Boilerplate';
-const description = 'Astro 5 SSR + StudioLayer headless CMS, with same-origin media cloaking.';
+const description = 'Astro SSR + StudioLayer headless CMS, with same-origin media cloaking.';
 ---
 <Base title={title} description={description}>
   <main class="mx-auto max-w-2xl px-6 py-24">
@@ -15,12 +16,30 @@ const description = 'Astro 5 SSR + StudioLayer headless CMS, with same-origin me
     <p class="mt-4 text-lg opacity-70">{description}</p>
 
     <ul class="mt-10 space-y-2 text-sm">
-      <li>✓ Astro 5 SSR (node standalone adapter)</li>
+      <li>✓ Astro SSR (node standalone adapter)</li>
       <li>✓ Tailwind 4 via <code>@tailwindcss/vite</code></li>
       <li>✓ StudioLayer client in <code>src/lib/studio.ts</code></li>
-      <li>✓ Media cloaking at <code>/cdn/&lt;uuid&gt;</code> (resize + cache)</li>
+      <li>✓ Media cloaking at <code>/cdn/&lt;uuid&gt;</code> (resize + AVIF/WebP + cache)</li>
+      <li>✓ Indexing guard (only the production host is indexable)</li>
       <li>✓ Prod-ready Docker (multi-stage)</li>
     </ul>
+
+    {/*
+      Cloaked image, once you have a CMS URL:
+
+      <CdnImage src={post.cover} alt={post.title} width={960}
+                sizes="(min-width:768px) 50vw, 100vw" priority />
+
+      Or a full <picture> with AVIF -> WebP fallback:
+
+      <picture>
+        <CdnSource src={post.cover} format="avif" widths={[640,960,1280]} sizes="50vw" />
+        <CdnSource src={post.cover} format="webp" widths={[640,960,1280]} sizes="50vw" />
+        <CdnImage  src={post.cover} alt={post.title} width={960} />
+      </picture>
+
+      Or the primitive anywhere a URL goes:  cdn(url, { w: 1280, f: 'avif' })
+    */}
 
     <p class="mt-10 text-sm opacity-60">
       Copy <code>.env.example</code> to <code>.env</code>, fill in your StudioLayer key,

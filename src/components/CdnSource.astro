@@ -1,0 +1,31 @@
+---
+/**
+ * A single <source> for a cloaked <picture>, in one format (AVIF/WebP/...).
+ *
+ * Compose a modern <picture> that lets the browser pick the smallest format it
+ * supports, with an <img> fallback:
+ *
+ *   <picture>
+ *     <CdnSource src={url} format="avif" widths={[640,960,1280]} sizes="50vw" />
+ *     <CdnSource src={url} format="webp" widths={[640,960,1280]} sizes="50vw" />
+ *     <CdnImage  src={url} alt="…" width={960} />
+ *   </picture>
+ *
+ * Order matters: put the smallest/most-preferred format first - the browser
+ * takes the first <source> whose type it understands.
+ */
+import { cdnSrcSet, type CdnFormat } from '@/lib/cdn';
+
+interface Props {
+  src: string;
+  format: CdnFormat;
+  widths?: number[];
+  sizes?: string;
+}
+
+const { src, format, widths = [320, 480, 640, 960, 1280], sizes = '100vw' } = Astro.props;
+
+const set = cdnSrcSet(src, widths, format);
+const mime = `image/${format === 'jpeg' ? 'jpeg' : format}`;
+---
+{set && <source type={mime} srcset={set} sizes={sizes} />}

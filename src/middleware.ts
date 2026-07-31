@@ -9,8 +9,8 @@ import { isProdRequest } from '@/lib/host';
  *    against clickjacking elsewhere.
  *
  * 2. Indexing guard: only the canonical production host (PUBLIC_SITE_URL) may be
- *    indexed. Every other host (preview/staging deploys, raw IPs, *.coolify,
- *    localhost) gets `X-Robots-Tag: noindex, nofollow` so it never shows up in
+ *    indexed. Every other host (preview/staging deploys, raw IPs, localhost)
+ *    gets `X-Robots-Tag: noindex, nofollow` so it never shows up in
  *    search. The dynamic robots.txt (src/pages/robots.txt.ts) does the same at
  *    the crawl level.
  */
