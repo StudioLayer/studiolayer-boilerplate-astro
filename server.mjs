@@ -3,8 +3,24 @@
 // without immutable caching; this script fills that gap.
 //
 // Container start: `node server.mjs` (see package.json "start" + Dockerfile).
-import { handler as astroHandler } from './dist/server/entry.mjs';
 import http from 'node:http';
+
+// ── Boot-time env guard ──────────────────────────────────────────────────────
+// Fail loud and early: a prod deploy missing a required var must die before it
+// binds the port, not serve half a site on the first CMS request. Kept in sync
+// with src/lib/env.ts (which does the same for `astro dev`).
+const REQUIRED = ['STUDIOLAYER_API_KEY', 'STUDIOLAYER_PROJECT'];
+const missing = REQUIRED.filter((k) => !(process.env[k] || '').trim());
+if (missing.length && process.env.NODE_ENV === 'production') {
+  console.error(`[env] Missing required environment variables: ${missing.join(', ')}`);
+  console.error('[env] Refusing to start in production. Set them and redeploy.');
+  process.exit(1);
+}
+if (missing.length) {
+  console.warn(`[env] Missing ${missing.join(', ')} - CMS calls will fail until set.`);
+}
+
+const { handler: astroHandler } = await import('./dist/server/entry.mjs');
 
 const PORT = Number(process.env.PORT) || 4321;
 const HOST = process.env.HOST || '0.0.0.0';

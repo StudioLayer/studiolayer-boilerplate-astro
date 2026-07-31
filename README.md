@@ -1,122 +1,120 @@
 # StudioLayer Astro Boilerplate
 
-A ready-to-go starter for a website on **Astro SSR** with **StudioLayer** as a headless CMS. Fully env-driven and brandless: clone it, fill in `.env`, build.
+Astro SSR + [StudioLayer](https://studiolayer.io) as a headless CMS. The starting point we clone for a new site: fast, env-driven, brandless, ready for prod on day one.
 
-> **Working with an AI agent on this repo?** Read [AGENTS.md](./AGENTS.md) first - it holds the hard rules (SSR-only, the `src/`-not-in-runtime gotcha, media cloaking, secrets, the indexing guard).
+No client name, domain or key is baked in. Set your env, wire up your content, ship.
 
 ## Stack
 
-- **Astro** in SSR mode (`output: 'server'`, `@astrojs/node` standalone)
-- **Tailwind 4** via `@tailwindcss/vite`
-- **@studiolayer/client** for content from the StudioLayer Content API
-- **sharp** for server-side image resize + AVIF/WebP encoding
-- **Docker** multi-stage, prod-ready (runs `node server.mjs`)
+| | |
+|---|---|
+| **Framework** | Astro, `output: 'server'`, `@astrojs/node` standalone |
+| **Styling** | Tailwind 4 via `@tailwindcss/vite` - tokens in `src/styles/app.css` (`@theme`), no config file |
+| **CMS** | `@studiolayer/client` |
+| **Images** | `sharp` - server-side resize + AVIF/WebP, same-origin proxy |
+| **Lang** | TypeScript strict, `@/*` -> `src/*` |
 
 ## Quick start
 
 ```bash
+cp .env.example .env      # fill STUDIOLAYER_API_KEY + STUDIOLAYER_PROJECT
 npm install
-cp .env.example .env      # fill in STUDIOLAYER_API_KEY + STUDIOLAYER_PROJECT
 npm run dev               # http://localhost:4321
 ```
 
-Build & prod:
-
 ```bash
 npm run build
-npm run start             # node server.mjs (port 4321)
+npm run start             # prod server: node server.mjs
 ```
+
+Node 22 (see `.nvmrc`).
 
 ## Env
 
-| Var | Required | Description |
-|-----|----------|-------------|
-| `PUBLIC_SITE_URL` | yes | Canonical production URL (OG tags, sitemap, indexing guard). No trailing slash. |
-| `STUDIOLAYER_API_KEY` | yes | Content API key. **Store as a secret**, never commit. |
-| `STUDIOLAYER_BASE_URL` | no | App origin. Default `https://app.studiolayer.io`. |
-| `STUDIOLAYER_PROJECT` | yes | Project slug (determines the default media bucket). |
-| `STUDIOLAYER_CDN_ORIGIN` | no | CDN host. Default `https://cdn.studiolayer.io`. |
-| `STUDIOLAYER_CDN_BUCKET` | no | Override the bucket prefix for bare keys. |
+| Var | Required | What |
+|---|---|---|
+| `STUDIOLAYER_API_KEY` | yes | Content API key. Store as a secret in your host env, never in the repo. |
+| `STUDIOLAYER_PROJECT` | yes | Project slug. Also drives the default media bucket. |
+| `PUBLIC_SITE_URL` | prod | Canonical URL. Without it nothing is treated as production and the site stays `noindex`. |
+| `STUDIOLAYER_BASE_URL` | no | App origin. Defaults to `https://app.studiolayer.io`. |
+| `STUDIOLAYER_CDN_ORIGIN` | no | Media CDN origin. Server-side only. |
+| `STUDIOLAYER_CDN_BUCKET` | no | Override the default bucket prefix. |
 
-## Media cloaking (`/cdn/<uuid>`)
+`assertEnv()` runs at boot: it throws in production when a required var is missing, so a broken deploy dies at startup instead of serving half a site. In dev it just warns.
 
-All CMS images go through the same-origin proxy in `src/pages/cdn/[...key].ts`. The markup only ever contains `/cdn/<uuid>.webp` - visitors never see that the media comes from StudioLayer / an external CDN.
+## Content
 
-- **Bare key** `/cdn/<uuid>.webp` → default project bucket
-- **Full path** `/cdn/agent-uploads/<uuid>.png` → other production folder
-- **App file** `/cdn/_a/api/files/<uid>` → app origin
-- `?w=640` → server-side resize
-- `?f=avif|webp|jpeg|png` → force a format. Omit it and the proxy negotiates the best one from the browser's `Accept` header (AVIF > WebP), sending `Vary: Accept`.
+```ts
+import { studio, safe } from '@/lib/studio';
 
-The upstream host is fixed **server-side** (env), checked against a host whitelist (no SSRF), and the proxy caches in-memory (24h LRU) with `immutable` Cache-Control + width/format-aware ETag/304.
+// Always wrap reads in safe() - a CMS hiccup degrades to the fallback, no 500.
+const posts = await safe(() => studio.dataset('blog', 'posts').list(), []);
+const page  = await safe(() => studio.dataset('site', 'pages').get(uid), null);
+```
 
-### In templates
+## Images
 
-The primitive - `cdn()` - works anywhere a URL goes (img, background-image, og:image, preload):
+Everything goes through `/cdn/<key>` - same origin, so the markup never exposes the StudioLayer backend, and the proxy resizes + re-encodes (AVIF/WebP) and caches hard.
 
-```astro
----
+```ts
 import { cdn } from '@/lib/studio';
----
-<img src={cdn(post.cover, 640)} />
-<div style={`background-image:url(${cdn(hero, { w: 1280, f: 'avif' })})`}></div>
+
+cdn(url)                        // /cdn/<uuid>.webp
+cdn(url, 640)                   // + resize to 640px
+cdn(url, { w: 1280, f: 'avif' })// + force AVIF
 ```
 
-`<CdnImage>` is the responsive wrapper (auto srcset, lazy/priority):
-
-```astro
----
-import CdnImage from '@/components/CdnImage.astro';
----
-<CdnImage src={post.cover} alt={post.title} width={960}
-          sizes="(min-width:768px) 50vw, 100vw" priority />
-```
-
-`<CdnSource>` builds a modern `<picture>` (AVIF → WebP fallback, smallest first):
+`cdn()` is the primitive - use it anywhere a URL goes (`img` src, background-image, `og:image`, preload). Two components sit on top:
 
 ```astro
 ---
 import CdnImage from '@/components/CdnImage.astro';
 import CdnSource from '@/components/CdnSource.astro';
 ---
+<!-- responsive <img>, auto srcset. priority = LCP/above-the-fold -->
+<CdnImage src={post.cover} alt={post.title} width={960} sizes="(min-width:768px) 50vw, 100vw" priority />
+
+<!-- AVIF -> WebP fallback via <picture> -->
 <picture>
-  <CdnSource src={post.cover} format="avif" widths={[640,960,1280]} sizes="50vw" />
-  <CdnSource src={post.cover} format="webp" widths={[640,960,1280]} sizes="50vw" />
+  <CdnSource src={post.cover} format="avif" widths={[640, 960, 1280]} sizes="50vw" />
+  <CdnSource src={post.cover} format="webp" widths={[640, 960, 1280]} sizes="50vw" />
   <CdnImage  src={post.cover} alt={post.title} width={960} />
 </picture>
 ```
 
-Helpers also available: `cdnSrcSet(url, widths, format)`, `isProxyable(url)`. Legacy aliases `proxied` / `imgAtWidth` / `srcSet` still exist.
+Output format is negotiated per request (AVIF > WebP from `Accept`) unless you pin it. The proxy allowlists upstream hosts, clamps resize width, and varies its cache on format - no open-proxy or SSRF surface.
 
-## Indexing guard
+## Indexing
 
-Only the canonical `PUBLIC_SITE_URL` host is indexable; every preview/staging host stays `noindex`. Enforced in three places off `isProdRequest()` in `src/lib/host.ts`:
+Only the canonical `PUBLIC_SITE_URL` host is indexable. Every other host - preview deploys, staging, raw IPs, localhost - is forced `noindex` at three levels: `X-Robots-Tag` header (`middleware.ts`), crawl policy (`robots.txt`), and meta tag (`Base.astro`). Preview URLs stay out of search by default. The single source of truth is `isProdRequest()` in `src/lib/host.ts`.
 
-- `middleware.ts` → `X-Robots-Tag: noindex` header on non-prod
-- `src/pages/robots.txt.ts` → `Disallow: /` on non-prod, real policy on prod
-- `Base.astro` → `<meta name="robots" content="noindex">` on non-prod
+`robots.txt`, `sitemap.xml` and a `/health` liveness probe are all dynamic routes.
 
-The node adapter reports `Astro.url.host` as `localhost`, so the real host is read from `x-forwarded-host` - always go through `isProdRequest()`, never compare the host directly.
-
-## Production notes
-
-The runtime container copies **only** `dist/`, `node_modules`, `server.mjs`, `package.json` - **not** `src/`. So server-side routes must never read from `src/` (`import.meta.url` + `node:fs`); that works locally but fails with a 500 in production. Runtime assets (fonts for OG images, etc.) belong in `public/` (they end up in `dist/client`) and load over HTTP (`fetch(\`${url.origin}/...\`)`).
-
-## Structure
+## Layout
 
 ```
 src/
-  lib/studio.ts             # CMS client (re-exports the cdn helpers)
-  lib/cdn.ts                # cloak helpers: cdn(), cdnSrcSet(), isProxyable()
-  lib/host.ts               # request-host resolver + prod check (indexing guard)
-  pages/cdn/[...key].ts      # media proxy (cloaking + resize + AVIF/WebP + cache)
-  pages/robots.txt.ts        # dynamic robots.txt (prod-only crawl)
-  pages/index.astro          # demo page
-  components/CdnImage.astro   # responsive cloaked <img>
-  components/CdnSource.astro  # <source> for a cloaked <picture>
-  layouts/Base.astro         # <head>, OG tags, noindex meta, inline-editor embed
-  middleware.ts              # CSP frame-ancestors + X-Robots-Tag
-  styles/app.css             # Tailwind 4 + design tokens
-server.mjs                   # prod server (immutable cache on static assets)
-Dockerfile                   # multi-stage build
+  lib/        studio (CMS + safe), cdn (cloak helpers), host (indexing), env
+  pages/      cdn/[...key], robots.txt, sitemap.xml, health, 404, index
+  components/ CdnImage, CdnSource
+  layouts/    Base (head, OG, sl.js embed)
+  styles/     app.css (Tailwind 4 @theme tokens)
+  middleware.ts   security headers + CSP + indexing guard
+server.mjs    prod server (immutable cache on hashed assets)
+Dockerfile    multi-stage build + healthcheck
 ```
+
+## Deploy
+
+Any host that runs a container or a node process. Build the image, set the env, expose port `4321`. The container ships only `dist/`, `node_modules`, `server.mjs` and `package.json` - **never `src/`**, so server-side routes must not read from the filesystem (put runtime assets in `public/`).
+
+## For agents
+
+`AGENTS.md` holds the hard rules (SSR-only, media through `/cdn/`, don't break the indexing guard, keep the `sl.js` embed) and a definition-of-done checklist. Read it before editing.
+
+## Docs
+
+- Astro: https://docs.astro.build/en/getting-started/
+- Astro node adapter (SSR): https://docs.astro.build/en/guides/integrations-guide/node/
+- StudioLayer: https://studiolayer.io
+- Tailwind 4: https://tailwindcss.com/docs

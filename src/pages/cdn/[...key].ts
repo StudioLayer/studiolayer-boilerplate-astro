@@ -145,7 +145,7 @@ export const GET: APIRoute = async ({ params, request }) => {
     return new Response(null, { status: 304, headers: cacheHeaders(hit.type, hit.etag, negotiated) });
   }
   if (hit) {
-    return new Response(hit.body, { status: 200, headers: cacheHeaders(hit.type, hit.etag, negotiated) });
+    return new Response(new Uint8Array(hit.body), { status: 200, headers: cacheHeaders(hit.type, hit.etag, negotiated) });
   }
 
   // Fetch upstream
@@ -192,7 +192,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   if (inm && inm === etag) {
     return new Response(null, { status: 304, headers: cacheHeaders(type, etag, negotiated) });
   }
-  return new Response(body, { status: 200, headers: cacheHeaders(type, etag, negotiated) });
+  return new Response(new Uint8Array(body), { status: 200, headers: cacheHeaders(type, etag, negotiated) });
 };
 
 function cacheHeaders(type: string, etag: string, vary: boolean): Record<string, string> {

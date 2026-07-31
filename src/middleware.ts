@@ -1,32 +1,44 @@
 import { defineMiddleware } from 'astro:middleware';
 import { isProdRequest } from '@/lib/host';
+import { assertEnv } from '@/lib/env';
+
+// Validate env when the SSR entry loads (i.e. at server boot), so a misconfigured
+// prod deploy dies immediately instead of on the first CMS request.
+assertEnv();
 
 /**
- * Two responsibilities:
+ * Three responsibilities, applied to every response:
  *
- * 1. CSP frame-ancestors so the site can be embedded in the StudioLayer inline
- *    editor (preview iframe on app.studiolayer.io), while staying protected
- *    against clickjacking elsewhere.
- *
- * 2. Indexing guard: only the canonical production host (PUBLIC_SITE_URL) may be
+ * 1. Security headers - sane defaults on every route.
+ * 2. CSP frame-ancestors - the site can be embedded in the StudioLayer inline
+ *    editor (preview iframe on app.studiolayer.io) but is clickjack-protected
+ *    everywhere else.
+ * 3. Indexing guard - only the canonical production host (PUBLIC_SITE_URL) may be
  *    indexed. Every other host (preview/staging deploys, raw IPs, localhost)
- *    gets `X-Robots-Tag: noindex, nofollow` so it never shows up in
- *    search. The dynamic robots.txt (src/pages/robots.txt.ts) does the same at
- *    the crawl level.
+ *    gets `X-Robots-Tag: noindex, nofollow`. The dynamic robots.txt and sitemap
+ *    enforce the same rule at the crawl level.
  */
 const APP_ORIGIN = process.env.STUDIOLAYER_BASE_URL || 'https://app.studiolayer.io';
 
 export const onRequest = defineMiddleware(async (ctx, next) => {
   const res = await next();
 
-  // CSP for the editor embed.
+  // 1. Security headers.
+  res.headers.set('x-content-type-options', 'nosniff');
+  res.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
+  res.headers.set('x-frame-options', 'SAMEORIGIN');
+  res.headers.set('permissions-policy', 'geolocation=(), microphone=(), camera=()');
+  res.headers.set('strict-transport-security', 'max-age=31536000; includeSubDomains');
+
+  // 2. CSP for the editor embed (frame-ancestors overrides X-Frame-Options for iframes).
   const appHost = new URL(APP_ORIGIN).host;
+  const appApex = appHost.split('.').slice(-2).join('.');
   res.headers.set(
     'content-security-policy',
-    `frame-ancestors 'self' ${APP_ORIGIN} https://*.${appHost.split('.').slice(-2).join('.')}`,
+    `frame-ancestors 'self' ${APP_ORIGIN} https://*.${appApex}`,
   );
 
-  // Indexing guard: block everything that isn't the production host.
+  // 3. Indexing guard: block everything that isn't the production host.
   if (!isProdRequest(ctx.request, ctx.url)) {
     res.headers.set('x-robots-tag', 'noindex, nofollow');
   }

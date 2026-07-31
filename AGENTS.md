@@ -17,6 +17,13 @@ hardcoded. When you build a real site on top of this, keep it that way.
 - `sharp` for server-side image resize + AVIF/WebP encoding
 - TypeScript strict, path alias `@/*` -> `src/*`
 
+Docs to consult before touching framework behaviour:
+- Astro: https://docs.astro.build/en/getting-started/
+- Astro on-demand rendering (SSR): https://docs.astro.build/en/guides/on-demand-rendering/
+- Astro node adapter: https://docs.astro.build/en/guides/integrations-guide/node/
+- Astro endpoints (the `.ts` routes): https://docs.astro.build/en/guides/endpoints/
+- Astro middleware: https://docs.astro.build/en/guides/middleware/
+
 ## Hard rules
 
 1. **SSR only, never static.** The site runs as a node server (`npm run start`
@@ -40,8 +47,8 @@ hardcoded. When you build a real site on top of this, keep it that way.
 
 4. **Never hardcode or commit secrets.** `STUDIOLAYER_API_KEY` and friends come
    from env only. `.env` is gitignored; only `.env.example` is committed. When a
-   new secret is needed, add it to `.env.example` (empty) and document it in the
-   README table.
+   new secret is needed, add it to `.env.example` (empty), document it in the
+   README table, and register it in `src/lib/env.ts` if it is required at boot.
 
 5. **Don't break the indexing guard.** Only the canonical `PUBLIC_SITE_URL` host
    may be indexed; every preview/staging host must stay `noindex`. The logic
@@ -58,18 +65,22 @@ hardcoded. When you build a real site on top of this, keep it that way.
 ## Where things live
 
 ```
-src/lib/studio.ts          CMS client (re-exports the cdn helpers)
+src/lib/studio.ts          CMS client + safe() fallback + boot env check
 src/lib/cdn.ts             cloak helpers: cdn(), cdnSrcSet(), isProxyable()
 src/lib/host.ts            request-host resolver + prod check (indexing guard)
+src/lib/env.ts             boot-time env validation (throws in prod when missing)
 src/pages/cdn/[...key].ts   media proxy (cloaking + resize + AVIF/WebP + cache)
 src/pages/robots.txt.ts     dynamic robots.txt (prod-only crawl)
+src/pages/sitemap.xml.ts    dynamic sitemap (prod-only, wire up your routes)
+src/pages/health.ts         liveness probe (/health, no CMS)
+src/pages/404.astro         not-found page
 src/components/CdnImage.astro   responsive cloaked <img>
 src/components/CdnSource.astro  <source> for a cloaked <picture>
 src/layouts/Base.astro      head, OG tags, sl.js embed, noindex meta
-src/middleware.ts           CSP frame-ancestors + X-Robots-Tag
+src/middleware.ts           security headers + CSP frame-ancestors + X-Robots-Tag
 src/styles/app.css          Tailwind 4 + @theme design tokens
 server.mjs                  prod server (immutable cache on static assets)
-Dockerfile                  multi-stage build
+Dockerfile                  multi-stage build + healthcheck
 ```
 
 ## Images (cheat sheet)
@@ -82,6 +93,16 @@ Dockerfile                  multi-stage build
   put `format="avif"` before `format="webp"`, with `<CdnImage>` as the fallback.
 - Format is negotiated per request (AVIF > WebP from `Accept`) unless you pin
   `?f=` / the `format` prop. The route sends `Vary: Accept`.
+
+## Reads that can fail
+
+Wrap every CMS read in `safe()` from `@/lib/studio` so a StudioLayer hiccup
+degrades to a fallback instead of a 500:
+
+```ts
+const posts = await safe(() => studio.dataset('blog', 'posts').list(), []);
+const page  = await safe(() => studio.dataset('site', 'pages').get(uid), null);
+```
 
 ## Commands
 

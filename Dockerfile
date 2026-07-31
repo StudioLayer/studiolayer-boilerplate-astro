@@ -29,4 +29,9 @@ COPY --from=build /app/server.mjs ./server.mjs
 COPY --from=build /app/package.json ./package.json
 
 EXPOSE 4321
+
+# Liveness probe: hits /health (process-only, never touches the CMS).
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||4321)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
 CMD ["node", "./server.mjs"]
